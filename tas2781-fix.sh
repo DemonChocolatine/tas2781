@@ -322,6 +322,7 @@ parse_args() {
       ;;
     --uninstall)
       uninstall
+      sudo rm -f "$SCRIPT_PATH"
       printf "tas2781-fix has been uninstalled successfully.\n"
       printf "Please reboot your system to apply the changes.\n"
       exit 0
