@@ -258,7 +258,7 @@ trigger_fix() {
 
   # Send a byte to the socket to trigger the tas2781-fix script. 
   # This allows a non-root user to trigger the script.
-  printf "1" | socat - UNIX-CONNECT:"$SERVICE_SOCKET"
+  printf "" | socat - UNIX-CONNECT:"$SERVICE_SOCKET"
 }
 
 monitor_sound_activation() {
@@ -274,7 +274,6 @@ monitor_sound_activation() {
 
 run_fix_service() {
   monitor_sound_activation | while read; do
-    echo "Triggering the tas2781-fix script after resuming from suspend."
     sleep 1
     trigger_fix
   done
