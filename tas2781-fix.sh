@@ -262,19 +262,23 @@ trigger_fix() {
   printf "1" | socat - UNIX-CONNECT:"$SERVICE_SOCKET"
 }
 
-run_fix_service() {
-  # Trigger the tas2781-fix script on login.
-  trigger_fix
+monitor_sound_activation() {
+  local unarray='.[]'
+  local state_changed='select(.info["change-mask"]|index("state"))'
+  local running='select(.info.state=="running")'
+  local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
 
-  # Trigger the tas2781-fix script after resuming from suspend.
-  dbus-monitor "type='signal',interface='org.kde.Solid.PowerManagement.Actions.SuspendSession',member='resumingFromSuspend'" |
-    while read -r line; do
-      if echo "$line" | grep -q "resumingFromSuspend"; then
-        echo "Triggering the tas2781-fix script after resuming from suspend."
-        sleep 1
-        trigger_fix
-      fi
-    done
+  pw-dump -m | stdbuf -oL jq -cM "$unarray | $state_changed | $running | $snd_hda_intel" | while read -r line; do
+    echo ""
+  done
+}
+
+run_fix_service() {
+  monitor_sound_activation | while read; do
+    echo "Triggering the tas2781-fix script after resuming from suspend."
+    sleep 1
+    trigger_fix
+  done
 }
 
 check-dependencies() {
@@ -285,6 +289,16 @@ check-dependencies() {
 
   if ! command -v socat &>/dev/null; then
     printf "The socat package is required to run this script.\n"
+    exit 1
+  fi
+
+  if ! command -v jq &>/dev/null; then
+    printf "The jq package is required to run this script.\n"
+    exit 1
+  fi
+
+  if ! command -v pw-dump &>/dev/null; then
+    printf "The pipewire package is required to run this script.\n"
     exit 1
   fi
 }
