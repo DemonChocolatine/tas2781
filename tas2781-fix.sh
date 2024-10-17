@@ -256,7 +256,7 @@ trigger_fix() {
 
   echo "Triggering the tas2781-fix script."
 
-  # Send a byte to the socket to trigger the tas2781-fix script. 
+  # Poke the socket to trigger the tas2781-fix script. 
   # This allows a non-root user to trigger the script.
   printf "" | socat - UNIX-CONNECT:"$SERVICE_SOCKET"
 }
