@@ -168,7 +168,6 @@ EOF
 
   systemctl enable --user tas2781-fix.service
   systemctl start --user tas2781-fix.service
-  systemctl --user daemon-reload
 }
 
 execute_fix() {
