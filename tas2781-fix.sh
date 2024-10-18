@@ -195,7 +195,7 @@ execute_fix() {
     # Add a 1ms delay
     sleep 0.001
 
-    i2cset -f -y $i2c_bus $value 0x0e 0xc4 0x40 i # TDM TX voltage sense transmit enable with slot 4, curent sense transmit enable with slot 0
+    i2cset -f -y $i2c_bus $value 0x0e 0xc4 0x40 i # TDM TX voltage sense enable with slot 4, curent sense enable with slot 0
     i2cset -f -y $i2c_bus $value 0x5c 0xd9 # CLK_PWRUD=1, DIS_CLK_HALT=0, CLK_HALT_TIMER=011, IRQZ_CLR=0, IRQZ_CFG=3
     i2cset -f -y $i2c_bus $value 0x60 0x10 # SBCLK_FS_RATIO=2
     if [ $val -eq 0 ];
@@ -261,20 +261,13 @@ trigger_fix() {
   printf "" | socat - UNIX-CONNECT:"$SERVICE_SOCKET"
 }
 
-monitor_sound_activation() {
+run_fix_service() {
   local unarray='.[]'
   local state_changed='select(.info["change-mask"]|index("state"))'
   local running='select(.info.state=="running")'
   local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
 
-  pw-dump -m | stdbuf -oL jq -cM "$unarray | $state_changed | $running | $snd_hda_intel" | while read -r line; do
-    echo ""
-  done
-}
-
-run_fix_service() {
-  monitor_sound_activation | while read; do
-    sleep 1
+  pw-dump -m | stdbuf -oL jq -cM "$unarray | $state_changed | $running | $snd_hda_intel" | while IFS=$'\n' read -r; do
     trigger_fix
   done
 }
