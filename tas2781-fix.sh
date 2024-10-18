@@ -3,7 +3,7 @@
 # This script is used to fix the audio problems on Legion Pro 7 16IRX8H.
 # This is a combination of solutions from https://forums.lenovo.com/t5/Ubuntu/Ubuntu-and-legion-pro-7-16IRX8H-audio-issues/m-p/5210709
 
-SERVICE_SOCKET="/run/tas2781-fix.sock"
+SERVICE_FIFO="/run/tas2781-fix.fifo"
 SCRIPT_PATH="/usr/local/bin/tas2781-fix"
 SERVICE_PATH="/etc/systemd/system/tas2781-fix.service"
 SOCKET_PATH="/etc/systemd/system/tas2781-fix.socket"
@@ -48,6 +48,7 @@ uninstall() {
   sudo rm -f "$USER_SERVICE_PATH"
   sudo rm -f "$DISABLE_POWERSAVE_MODPROBE"
   sudo rm -f "$DISABLE_PIPEWIRE_SUSPEND_CONF"
+  sudo rm -f "$SERVICE_FIFO"
 }
 
 install() {
@@ -78,7 +79,6 @@ Requires=tas2781-fix.socket
 ExecStart=$SCRIPT_PATH --execute
 Restart=no
 StandardInput=socket
-StandardOutput=journal
 Type=oneshot
 TimeoutSec=60
 EOF
@@ -88,9 +88,10 @@ EOF
 Description=Socket to trigger the tas2781 fix
 
 [Socket]
-ListenStream=$SERVICE_SOCKET
-Accept=no
+ListenFIFO=$SERVICE_FIFO
 FlushPending=yes
+SocketMode=0442
+Accept=no
 
 [Install]
 WantedBy=sockets.target
@@ -258,7 +259,7 @@ trigger_fix() {
 
   # Poke the socket to trigger the tas2781-fix script. 
   # This allows a non-root user to trigger the script.
-  printf "" | socat - UNIX-CONNECT:"$SERVICE_SOCKET"
+  echo "" > "$SERVICE_FIFO"
 }
 
 run_fix_service() {
@@ -277,12 +278,7 @@ check-dependencies() {
     printf "The i2c-tools package is required to run this script.\n"
     exit 1
   fi
-
-  if ! command -v socat &>/dev/null; then
-    printf "The socat package is required to run this script.\n"
-    exit 1
-  fi
-
+  
   if ! command -v jq &>/dev/null; then
     printf "The jq package is required to run this script.\n"
     exit 1
