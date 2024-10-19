@@ -17,8 +17,11 @@ uninstall() {
     exit 1
   fi
 
-  if [ "$0" != "$SCRIPT_PATH" ]; then
+  if [ "$0" != "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
+    # Call the uninstall function from the installed script. This allows older versions to uninstall themselves.
+    "$SCRIPT_PATH" --uninstall
     sudo rm -f "$SCRIPT_PATH"
+    return 0
   fi
 
   # stop running units if they exist
@@ -268,7 +271,7 @@ run_fix_service() {
   local running='select(.info.state=="running")'
   local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
 
-  pw-dump -m | stdbuf -oL jq -cM "$unarray | $state_changed | $running | $snd_hda_intel" | while IFS=$'\n' read -r; do
+  pw-dump -m | stdbuf -oL jq -cM "$unarray | $snd_hda_intel | $state_changed | $running" | while IFS=$'\n' read -r; do
     trigger_fix
   done
 }
