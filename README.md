@@ -12,7 +12,7 @@ Tested on Arch Linux, kernel 6.11, KDE Plasma 6.
 ## Installation
 
 ### Dependencies
-[socat](https://linux.die.net/man/1/socat), [jq](https://jqlang.github.io/jq/) and [i2c-tools](https://archive.kernel.org/oldwiki/i2c.wiki.kernel.org/index.php/I2C_Tools.html) must be installed before applying the fix. All are supported by mainstream package managers.
+[jq](https://jqlang.github.io/jq/) and [i2c-tools](https://archive.kernel.org/oldwiki/i2c.wiki.kernel.org/index.php/I2C_Tools.html) must be installed before applying the fix. Both are supported by mainstream package managers.
 
 ---
 ### Install
