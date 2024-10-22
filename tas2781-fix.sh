@@ -174,6 +174,26 @@ EOF
   systemctl start --user tas2781-fix.service
 }
 
+find_i2c_bus() {
+  find /sys/bus/i2c/devices/*/* -type d -name 'i2c-TIAS2781\:00' -exec dirname {} \; | xargs basename | cut -f2 -d-
+}
+
+find_i2c_addresses() {
+  local i2c_bus="$1"
+  local line_number=0
+  
+  i2cdetect -y -r $i2c_bus | tail -n +2 | while read line; do 
+    line="$(echo "$line" | sed 's/^.*://g')"
+    for ((i=0; i<${#line}; i+=3)); do
+        if [[ "${line:$i+1:2}" == "UU" || "${line:$i+1:2}" =~ [0-9a-fA-F]{2} ]]; then
+            value=$((line_number * 16 + i / 3))
+            echo $value
+        fi
+    done
+    line_number=$((line_number + 1))
+  done
+}
+
 execute_fix() {
   if [ "$(id -u)" -ne 0 ]; then
     printf "You must run this script as root.\n"
@@ -182,27 +202,29 @@ execute_fix() {
 
   local power_save_path="/sys/module/snd_hda_intel/parameters/power_save"
   local power_control_path="/sys/bus/i2c/drivers/tas2781-hda/i2c-TIAS2781:00/power/control"
-  local i2c_bus=$(find /sys/bus/i2c/devices/*/* -type d -name 'i2c-TIAS2781\:00' -exec dirname {} \; | xargs basename | cut -f2 -d-)
-  local i2c_addr=(0x3f 0x38)
-
-  local count=0
+  local i2c_bus=$(find_i2c_bus)
+  local i2c_addr=($(find_i2c_addresses "$i2c_bus"))
 
   for value in ${i2c_addr[@]}; do
-    local val=$((${count} % 2))
-
     # TAS2781 initialization
     # Data sheet: https://www.ti.com/lit/ds/symlink/tas2781.pdf
+    
+    # Get the channel configuration byte
+    channel_config_byte=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c "echo \$(({}))") 
+    # Get bits 4 and 5 of the channel configuration byte,
+    # which represent whether we are using the left or right channel
+    curent_channel=$((($channel_config_byte >> 4) & 0x03)) # 1 = Left channel, 2 = Right channel
 
     i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
     i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
     i2cset -f -y $i2c_bus $value 0x01 0x01 # Software Reset
-    # Add a 1ms delay
-    sleep 0.001
+    sleep 0.001 # Add a 1ms delay
 
     i2cset -f -y $i2c_bus $value 0x0e 0xc4 0x40 i # TDM TX voltage sense enable with slot 4, curent sense enable with slot 0
     i2cset -f -y $i2c_bus $value 0x5c 0xd9 # CLK_PWRUD=1, DIS_CLK_HALT=0, CLK_HALT_TIMER=011, IRQZ_CLR=0, IRQZ_CFG=3
     i2cset -f -y $i2c_bus $value 0x60 0x10 # SBCLK_FS_RATIO=2
-    if [ $val -eq 0 ];
+    
+    if [ $current_channel -eq 1 ];
     then
       i2cset -f -y $i2c_bus $value 0x0a 0x1e # Left channel
     else
@@ -229,8 +251,6 @@ execute_fix() {
     i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
     i2cset -f -y $i2c_bus $value 0x02 0x00 # Play audio, power up with playback, IV enabled
     sleep 0.001 # Add a 1ms delay
-
-    count=$((${count} + 1))
   done
 
   until [ -e "$power_save_path" ] && [ -e "$power_control_path" ]; do
