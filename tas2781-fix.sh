@@ -205,15 +205,18 @@ execute_fix() {
   local i2c_bus=$(find_i2c_bus)
   local i2c_addr=($(find_i2c_addresses "$i2c_bus"))
 
+  # Before resetting the tas2781, we need to track which address is associated with which channel.
+  # Reseting the tas2781 will reset the channel to the default value, so this step must be done before the reset.
+  declare -A address_channels
   for value in ${i2c_addr[@]}; do
+    address_channels["$value"]=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c 'echo $((({} >> 4) & 3))')
+  done
+
+  for value in ${i2c_addr[@]}; do
+    current_channel="${address_channels[$value]}"
+
     # TAS2781 initialization
     # Data sheet: https://www.ti.com/lit/ds/symlink/tas2781.pdf
-    
-    # Get the channel configuration byte
-    channel_config_byte=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c "echo \$(({}))") 
-    # Get bits 4 and 5 of the channel configuration byte,
-    # which represent whether we are using the left or right channel
-    curent_channel=$((($channel_config_byte >> 4) & 0x03)) # 1 = Left channel, 2 = Right channel
 
     i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
     i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
@@ -224,7 +227,7 @@ execute_fix() {
     i2cset -f -y $i2c_bus $value 0x5c 0xd9 # CLK_PWRUD=1, DIS_CLK_HALT=0, CLK_HALT_TIMER=011, IRQZ_CLR=0, IRQZ_CFG=3
     i2cset -f -y $i2c_bus $value 0x60 0x10 # SBCLK_FS_RATIO=2
     
-    if [ $current_channel -eq 1 ];
+    if [ $((current_channel)) -eq 1 ];
     then
       i2cset -f -y $i2c_bus $value 0x0a 0x1e # Left channel
     else
