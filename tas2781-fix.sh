@@ -225,7 +225,6 @@ execute_fix() {
     i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
     i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
     i2cset -f -y $i2c_bus $value 0x01 0x01 # Software Reset
-    sleep 0.001 # Add a 1ms delay
 
     i2cset -f -y $i2c_bus $value 0x0e 0xc4 0x40 i # TDM TX voltage sense enable with slot 4, curent sense enable with slot 0
     i2cset -f -y $i2c_bus $value 0x5c 0xd9 # CLK_PWRUD=1, DIS_CLK_HALT=0, CLK_HALT_TIMER=011, IRQZ_CLR=0, IRQZ_CFG=3
@@ -257,7 +256,6 @@ execute_fix() {
 
     i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
     i2cset -f -y $i2c_bus $value 0x02 0x00 # Play audio, power up with playback, IV enabled
-    sleep 0.001 # Add a 1ms delay
   done
 
   until [ -e "$power_save_path" ] && [ -e "$power_control_path" ]; do
