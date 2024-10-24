@@ -210,9 +210,9 @@ execute_fix() {
   # Before resetting the tas2781, we need to track which address is associated with which channel.
   # Reseting the tas2781 will reset the channel to the default value, so this step must be done before the reset.
   declare -A address_channels
+  i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
+  i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
   for value in ${i2c_addr[@]}; do
-    i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
-    i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
     address_channels["$value"]=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c 'echo $((({} >> 4) & 3))')
   done
 
