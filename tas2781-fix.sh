@@ -23,38 +23,67 @@ uninstall() {
   if [ "$0" != "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
     # Call the uninstall function from the installed script. This allows older versions to uninstall themselves.
     __SUPPRESS_UNINSTALL_MESSAGE=1 "$SCRIPT_PATH" --uninstall
+    echo "Removing script at $SCRIPT_PATH."
     sudo rm -f "$SCRIPT_PATH"
     return 0
   fi
 
   # stop running units if they exist
   if systemctl is-active --user --quiet tas2781-fix.service; then
+    echo "Stopping tas2781-fix service."
     systemctl --user stop tas2781-fix.service
   fi
 
   if systemctl is-active --quiet tas2781-fix.socket; then
+    echo "Stopping tas2781-fix activation unit."
     sudo systemctl stop tas2781-fix.socket
   fi
 
   if systemctl is-active --quiet tas2781-fix.service; then
+    echo "Stopping tas2781-fix execution unit."
     sudo systemctl stop tas2781-fix.service
   fi
 
   # disable running units if they exist
   if systemctl is-enabled --user --quiet tas2781-fix.service; then
+    echo "Disabling tas2781-fix service."
     systemctl --user disable tas2781-fix.service
   fi
 
   if systemctl is-enabled --quiet tas2781-fix.socket; then
+    echo "Disabling tas2781-fix activation unit."
     sudo systemctl disable tas2781-fix.socket
   fi
 
-  sudo rm -f "$SERVICE_PATH"
-  sudo rm -f "$SOCKET_PATH"
-  sudo rm -f "$USER_SERVICE_PATH"
-  sudo rm -f "$DISABLE_POWERSAVE_MODPROBE"
-  sudo rm -f "$DISABLE_PIPEWIRE_SUSPEND_CONF"
-  sudo rm -f "$SERVICE_FIFO"
+  if [ -f $SERVICE_PATH ]; then
+    echo "Removing tas2781-fix execution unit at $SERVICE_PATH."
+    sudo rm -f "$SERVICE_PATH"
+  fi
+  
+  if [ -f "$SOCKET_PATH" ]; then
+    echo "Removing tas2781-fix activation unit at $SOCKET_PATH."
+    sudo rm -f "$SOCKET_PATH"
+  fi
+
+  if [ -f "$USER_SERVICE_PATH" ]; then
+    echo "Removing tas2781-fix service at $USER_SERVICE_PATH."
+    sudo rm -f "$USER_SERVICE_PATH"
+  fi
+
+  if [ -f "$DISABLE_POWERSAVE_MODPROBE" ]; then
+    echo "Removing kernel module configuration at $DISABLE_POWERSAVE_MODPROBE."
+    sudo rm -f "$DISABLE_POWERSAVE_MODPROBE"
+  fi
+
+  if [ -f "$DISABLE_PIPEWIRE_SUSPEND_CONF" ]; then
+    echo "Removing PipeWire configuration at $DISABLE_PIPEWIRE_SUSPEND_CONF."
+    sudo rm -f "$DISABLE_PIPEWIRE_SUSPEND_CONF"
+  fi
+
+  if [ -p "$SERVICE_FIFO" ]; then
+    echo "Removing tas2781-fix FIFO at $SERVICE_FIFO."
+    sudo rm -f "$SERVICE_FIFO"
+  fi
 }
 
 install() {
@@ -66,6 +95,7 @@ install() {
   uninstall
 
   if [ "$0" != "$SCRIPT_PATH" ]; then
+    echo "Copying script to $SCRIPT_PATH."
     sudo cp "$0" "$SCRIPT_PATH"
     sudo chmod 0755 "$SCRIPT_PATH"
   fi
@@ -76,6 +106,7 @@ install() {
   sudo mkdir -p "$(dirname "$DISABLE_POWERSAVE_MODPROBE")"
   sudo mkdir -p "$(dirname "$DISABLE_PIPEWIRE_SUSPEND_CONF")"
 
+  echo "Creating tas2781-fix execution unit at $SERVICE_PATH."
   sudo tee "$SERVICE_PATH" >/dev/null <<EOF
 [Unit]
 Description=Run the tas2781-fix script when triggered
@@ -89,6 +120,7 @@ Type=oneshot
 TimeoutSec=60
 EOF
 
+  echo "Creating tas2781-fix activation unit at $SOCKET_PATH."
   sudo tee "$SOCKET_PATH" >/dev/null <<EOF
 [Unit]
 Description=Socket to trigger the tas2781 fix
@@ -103,6 +135,7 @@ Accept=no
 WantedBy=sockets.target
 EOF
 
+  echo "Creating tas2781-fix service at $USER_SERVICE_PATH."
   sudo tee "$USER_SERVICE_PATH" >/dev/null <<EOF
 [Unit]
 Description=Trigger the tas2781-fix script on login and resume
@@ -119,12 +152,14 @@ Type=exec
 WantedBy=pipewire.service
 EOF
 
+  echo "Creating kernel module configuration at $DISABLE_POWERSAVE_MODPROBE."
   sudo tee "$DISABLE_POWERSAVE_MODPROBE" >/dev/null <<EOF
 options snd_hda_intel power_save=0
 options snd_hda_intel power_save_controller=N
 blacklist snd_soc_avs
 EOF
 
+  echo "Creating PipeWire configuration at $DISABLE_PIPEWIRE_SUSPEND_CONF."
   sudo tee "$DISABLE_PIPEWIRE_SUSPEND_CONF" >/dev/null <<EOF
 monitor.alsa.rules = [
   {
@@ -334,7 +369,12 @@ parse_args() {
       ;;
     --uninstall)
       uninstall
-      sudo rm -f "$SCRIPT_PATH"
+
+      if [ -f "$SCRIPT_PATH" ]; then
+        echo "Removing script at $SCRIPT_PATH."
+        sudo rm -f "$SCRIPT_PATH"
+      fi
+      
       if [ -z "$__SUPPRESS_UNINSTALL_MESSAGE" ]; then
         echo "tas2781-fix has been uninstalled successfully."
         echo "Please reboot your system to apply the changes."
