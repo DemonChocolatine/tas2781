@@ -304,17 +304,17 @@ run_fix_service() {
 
 check-dependencies() {
   if ! command -v i2cset &>/dev/null; then
-    echo "The i2c-tools package is required to run this script."
+    echo "The i2c-tools package is required to run this script." >&2
     exit 1
   fi
   
   if ! command -v jq &>/dev/null; then
-    echo "The jq package is required to run this script."
+    echo "The jq package is required to run this script." >&2
     exit 1
   fi
 
   if ! command -v pw-dump &>/dev/null; then
-    echo "The pipewire package is required to run this script."
+    echo "The pipewire package is required to run this script." >&2
     exit 1
   fi
 }
