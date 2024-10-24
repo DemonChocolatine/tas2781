@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # This script is used to fix the audio problems on Legion Pro 7 16IRX8H.
 # This is a combination of solutions from https://forums.lenovo.com/t5/Ubuntu/Ubuntu-and-legion-pro-7-16IRX8H-audio-issues/m-p/5210709
 
@@ -180,17 +182,17 @@ find_i2c_bus() {
 
 find_i2c_addresses() {
   local i2c_bus="$1"
-  local line_number=0
+  local current_value=0
   
-  i2cdetect -y -r $i2c_bus | tail -n +2 | while read line; do 
-    line="$(echo "$line" | sed 's/^.*://g')"
+  i2cdetect -y -r $i2c_bus | tail -n +2 | while read -r line; do 
+    line=${line: -48:48}
     for ((i=0; i<${#line}; i+=3)); do
-        if [[ "${line:$i+1:2}" == "UU" || "${line:$i+1:2}" =~ [0-9a-fA-F]{2} ]]; then
-            value=$((line_number * 16 + i / 3))
-            echo $value
+        local substring=${line: $i+1:2}
+        if [[ "$substring" == "UU" || "$substring" =~ [0-9a-fA-F]{2} ]]; then
+            echo $current_value
         fi
+        ((current_value+=1))
     done
-    line_number=$((line_number + 1))
   done
 }
 
@@ -209,11 +211,13 @@ execute_fix() {
   # Reseting the tas2781 will reset the channel to the default value, so this step must be done before the reset.
   declare -A address_channels
   for value in ${i2c_addr[@]}; do
+    i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
+    i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
     address_channels["$value"]=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c 'echo $((({} >> 4) & 3))')
   done
 
   for value in ${i2c_addr[@]}; do
-    current_channel="${address_channels[$value]}"
+    local current_channel="${address_channels[$value]}"
 
     # TAS2781 initialization
     # Data sheet: https://www.ti.com/lit/ds/symlink/tas2781.pdf
