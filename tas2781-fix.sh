@@ -12,16 +12,17 @@ SOCKET_PATH="/etc/systemd/system/tas2781-fix.socket"
 USER_SERVICE_PATH="/etc/systemd/user/tas2781-fix.service"
 DISABLE_POWERSAVE_MODPROBE="/etc/modprobe.d/audio_disable_powersave.conf"
 DISABLE_PIPEWIRE_SUSPEND_CONF="/etc/wireplumber/wireplumber.conf.d/51-disable-suspension.conf"
+__SUPPRESS_UNINSTALL_MESSAGE=${__SUPPRESS_UNINSTALL_MESSAGE:-}
 
 uninstall() {
   if [ "$(id -u)" -eq 0 ]; then
-    printf "This script must not be run as root.\n"
+    echo "This script must not be run as root." >&2
     exit 1
   fi
 
   if [ "$0" != "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
     # Call the uninstall function from the installed script. This allows older versions to uninstall themselves.
-    "$SCRIPT_PATH" --uninstall
+    __SUPPRESS_UNINSTALL_MESSAGE=1 "$SCRIPT_PATH" --uninstall
     sudo rm -f "$SCRIPT_PATH"
     return 0
   fi
@@ -58,7 +59,7 @@ uninstall() {
 
 install() {
   if [ "$(id -u)" -eq 0 ]; then
-    printf "This script must not be run as root.\n"
+    echo "This script must not be run as root." >&2
     exit 1
   fi
 
@@ -198,7 +199,7 @@ find_i2c_addresses() {
 
 execute_fix() {
   if [ "$(id -u)" -ne 0 ]; then
-    printf "You must run this script as root.\n"
+    echo "You must run this script as root." >&2
     exit 1
   fi
 
@@ -210,9 +211,9 @@ execute_fix() {
   # Before resetting the tas2781, we need to track which address is associated with which channel.
   # Reseting the tas2781 will reset the channel to the default value, so this step must be done before the reset.
   declare -A address_channels
-  i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
-  i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
   for value in ${i2c_addr[@]}; do
+    i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
+    i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
     address_channels["$value"]=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c 'echo $((({} >> 4) & 3))')
   done
 
@@ -275,7 +276,7 @@ trigger_fix() {
   echo "Waiting for the tas2781-fix socket to become available."
   while ! systemctl is-active --quiet tas2781-fix.socket; do
     if [ $count -eq 60 ]; then
-      printf "Failed to trigger the tas2781-fix script.\n"
+      echo "Failed to trigger the tas2781-fix script." >&2
       exit 1
     fi
 
@@ -303,17 +304,17 @@ run_fix_service() {
 
 check-dependencies() {
   if ! command -v i2cset &>/dev/null; then
-    printf "The i2c-tools package is required to run this script.\n"
+    echo "The i2c-tools package is required to run this script."
     exit 1
   fi
   
   if ! command -v jq &>/dev/null; then
-    printf "The jq package is required to run this script.\n"
+    echo "The jq package is required to run this script."
     exit 1
   fi
 
   if ! command -v pw-dump &>/dev/null; then
-    printf "The pipewire package is required to run this script.\n"
+    echo "The pipewire package is required to run this script."
     exit 1
   fi
 }
@@ -332,19 +333,22 @@ parse_args() {
       ;;
     --install)
       install
-      printf "tas2781-fix has been installed successfully.\n"
-      printf "Please reboot your system to apply the changes.\n"
+      echo "tas2781-fix has been installed successfully."
+      echo "Please reboot your system to apply the changes."
       exit 0
       ;;
     --uninstall)
       uninstall
       sudo rm -f "$SCRIPT_PATH"
-      printf "tas2781-fix has been uninstalled successfully.\n"
-      printf "Please reboot your system to apply the changes.\n"
+      if [ -z "$__SUPPRESS_UNINSTALL_MESSAGE" ]; then
+        echo "tas2781-fix has been uninstalled successfully."
+        echo "Please reboot your system to apply the changes."
+      fi
+
       exit 0
       ;;
     *)
-      printf "Invalid argument: $1\n"
+      echo "Invalid argument: $1" >&2
       exit 1
       ;;
   esac
