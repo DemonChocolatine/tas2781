@@ -354,7 +354,21 @@ check-dependencies() {
   fi
 }
 
+print_usage() {
+  echo "Usage: $0 [OPTION]"
+  echo "Options:"
+  echo "  --install    Install the tas2781-fix script and enable the service."
+  echo "  --uninstall  Uninstall the tas2781-fix script and disable the service."
+  echo "  --execute    Execute the tas2781-fix script."
+  echo "  --start      Start the tas2781-fix service."
+}
+
 parse_args() {
+  if [ "$#" -ne 1 ]; then
+    print_usage
+    exit 1
+  fi
+
   check-dependencies
 
   case "$1" in
@@ -389,6 +403,8 @@ parse_args() {
       ;;
     *)
       echo "Invalid argument: $1" >&2
+      print_usage
+      
       exit 1
       ;;
   esac
