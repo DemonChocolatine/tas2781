@@ -252,7 +252,7 @@ execute_fix() {
   for value in ${i2c_addr[@]}; do
     i2cset -f -y $i2c_bus $value 0x00 0x00 # Page 0x00
     i2cset -f -y $i2c_bus $value 0x7f 0x00 # Book 0x00
-    address_channels["$value"]=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c 'echo $((({} >> 4) & 3))')
+    address_channels["$value"]=$(i2cget -f -y $i2c_bus $value 0x0a | xargs -I{} bash -c 'echo $(({}&0x30))')
   done
 
   for value in ${i2c_addr[@]}; do
@@ -269,7 +269,7 @@ execute_fix() {
     i2cset -f -y $i2c_bus $value 0x5c 0xd9 # CLK_PWRUD=1, DIS_CLK_HALT=0, CLK_HALT_TIMER=011, IRQZ_CLR=0, IRQZ_CFG=3
     i2cset -f -y $i2c_bus $value 0x60 0x10 # SBCLK_FS_RATIO=2
     
-    i2cset -f -y $i2c_bus $value 0x0a $(( 0x0e | ( current_channel * 0x10 ) )) # Left/right channel configuration
+    i2cset -f -y $i2c_bus $value 0x0a $(( 0x0e | current_channel )) # Left/right channel configuration
 
     i2cset -f -y $i2c_bus $value 0x0d 0x01 # TX_KEEPCY=0, TX_KEEPLN=0, TX_KEEPEN=0, TX_FILL=0, TX_OFFSET=000, TX_EDGE=1
     i2cset -f -y $i2c_bus $value 0x16 0x40 # AUDIO_SLEN=0, AUDIO_TX=0, AUDIO_SLOT=2
