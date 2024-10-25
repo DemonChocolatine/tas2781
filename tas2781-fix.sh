@@ -324,10 +324,12 @@ trigger_fix() {
 run_fix_service() {
   local unarray='.[]'
   local state_changed='select(.info["change-mask"]|index("state"))'
-  local running='select(.info.state=="running")'
+  local props_changed='select(.info["change-mask"]|index("props"))'
+  local sink='select(.info.props["media.class"]=="Audio/Sink")'
   local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
+  local alsa_components='select(.info.props["alsa.components"]|test("17aa3886"))'
 
-  pw-dump -m | stdbuf -oL jq -cM "$unarray | $snd_hda_intel | $state_changed | $running" | while IFS=$'\n' read -r; do
+  pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_components|$sink|$state_changed|$props_changed" | while IFS=$'\n' read -r; do
     trigger_fix
   done
 }
