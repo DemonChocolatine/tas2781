@@ -329,7 +329,7 @@ run_fix_service() {
   local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
   local alsa_components='select(.info.props["alsa.components"]|test("17aa3886"))'
 
-  pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_components|$sink|$state_changed|$props_changed" | while IFS=$'\n' read -r; do
+  pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_components|$sink|$state_changed|$props_changed|1" | while IFS=$'\n' read -r; do
     trigger_fix
   done
 }
