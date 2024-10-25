@@ -361,6 +361,7 @@ print_usage() {
   echo "  --uninstall  Uninstall the tas2781-fix script and disable the service."
   echo "  --execute    Execute the tas2781-fix script."
   echo "  --start      Start the tas2781-fix service."
+  echo "  --help       Display this help message."
 }
 
 parse_args() {
@@ -399,6 +400,10 @@ parse_args() {
         echo "Please reboot your system to apply the changes."
       fi
 
+      exit 0
+      ;;
+    --help)
+      print_usage
       exit 0
       ;;
     *)
