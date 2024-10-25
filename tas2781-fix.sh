@@ -20,6 +20,8 @@ uninstall() {
     exit 1
   fi
 
+  sudo true
+
   if [ "$0" != "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
     # Call the uninstall function from the installed script. This allows older versions to uninstall themselves.
     __SUPPRESS_UNINSTALL_MESSAGE=1 "$SCRIPT_PATH" --uninstall
@@ -92,6 +94,7 @@ install() {
     exit 1
   fi
 
+  sudo true
   uninstall
 
   if [ "$0" != "$SCRIPT_PATH" ]; then
