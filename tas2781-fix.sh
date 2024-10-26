@@ -101,7 +101,12 @@ polkit.addRule(function(action, subject) {
     var verb = action.lookup("verb");
     if (verb == "start" || verb == "stop" || verb == "restart") {
       if (subject.user == "$USER") {
-        return polkit.Result.YES;
+        var cgroup = polkit.spawn(["cat", "/proc/" + subject.pid + "/cgroup"]).trim();
+        var expectedCgroup = '0::/user.slice/user-$(id -u).slice/user@$(id -u).service/app.slice/tas2781-fix.service';
+
+        if (cgroup == expectedCgroup) {
+          return polkit.Result.YES;
+        }
       }
     }
   }
