@@ -5,11 +5,10 @@ set -euo pipefail
 # This script is used to fix the audio problems on Legion Pro 7 16IRX8H.
 # This is a combination of solutions from https://forums.lenovo.com/t5/Ubuntu/Ubuntu-and-legion-pro-7-16IRX8H-audio-issues/m-p/5210709
 
-SERVICE_FIFO="/run/tas2781-fix.fifo"
 SCRIPT_PATH="/usr/local/bin/tas2781-fix"
 SERVICE_PATH="/etc/systemd/system/tas2781-fix.service"
-SOCKET_PATH="/etc/systemd/system/tas2781-fix.socket"
 USER_SERVICE_PATH="/etc/systemd/user/tas2781-fix.service"
+POLKIT_RULES_PATH="/etc/polkit-1/rules.d/10-tas2781-fix.rules"
 DISABLE_POWERSAVE_MODPROBE="/etc/modprobe.d/audio_disable_powersave.conf"
 DISABLE_PIPEWIRE_SUSPEND_CONF="/etc/wireplumber/wireplumber.conf.d/51-disable-suspension.conf"
 __SUPPRESS_UNINSTALL_MESSAGE=${__SUPPRESS_UNINSTALL_MESSAGE:-}
@@ -36,11 +35,6 @@ uninstall() {
     systemctl --user stop tas2781-fix.service
   fi
 
-  if systemctl is-active --quiet tas2781-fix.socket; then
-    echo "Stopping tas2781-fix activation unit."
-    sudo systemctl stop tas2781-fix.socket
-  fi
-
   if systemctl is-active --quiet tas2781-fix.service; then
     echo "Stopping tas2781-fix execution unit."
     sudo systemctl stop tas2781-fix.service
@@ -52,19 +46,9 @@ uninstall() {
     systemctl --user disable tas2781-fix.service
   fi
 
-  if systemctl is-enabled --quiet tas2781-fix.socket; then
-    echo "Disabling tas2781-fix activation unit."
-    sudo systemctl disable tas2781-fix.socket
-  fi
-
   if [ -f $SERVICE_PATH ]; then
     echo "Removing tas2781-fix execution unit at $SERVICE_PATH."
     sudo rm -f "$SERVICE_PATH"
-  fi
-  
-  if [ -f "$SOCKET_PATH" ]; then
-    echo "Removing tas2781-fix activation unit at $SOCKET_PATH."
-    sudo rm -f "$SOCKET_PATH"
   fi
 
   if [ -f "$USER_SERVICE_PATH" ]; then
@@ -82,9 +66,9 @@ uninstall() {
     sudo rm -f "$DISABLE_PIPEWIRE_SUSPEND_CONF"
   fi
 
-  if [ -p "$SERVICE_FIFO" ]; then
-    echo "Removing tas2781-fix FIFO at $SERVICE_FIFO."
-    sudo rm -f "$SERVICE_FIFO"
+  if [ -f "$POLKIT_RULES_PATH" ]; then
+    echo "Removing polkit rule at $POLKIT_RULES_PATH."
+    sudo rm -f "$POLKIT_RULES_PATH"
   fi
 }
 
@@ -103,39 +87,34 @@ install() {
     sudo chmod 0755 "$SCRIPT_PATH"
   fi
 
+  sudo mkdir -p "$(dirname "$POLKIT_RULES_PATH")"
   sudo mkdir -p "$(dirname "$SERVICE_PATH")"
-  sudo mkdir -p "$(dirname "$SOCKET_PATH")"
   sudo mkdir -p "$(dirname "$USER_SERVICE_PATH")"
   sudo mkdir -p "$(dirname "$DISABLE_POWERSAVE_MODPROBE")"
   sudo mkdir -p "$(dirname "$DISABLE_PIPEWIRE_SUSPEND_CONF")"
+
+  echo "Creating the polkit rule at $POLKIT_RULES_PATH."
+  sudo tee "$POLKIT_RULES_PATH" >/dev/null <<EOF
+polkit.addRule(function(action, subject) {
+  if (action.id == "org.freedesktop.systemd1.manage-units" && action.lookup("unit") == "tas2781-fix.service") {
+    var verb = action.lookup("verb");
+    if (verb == "start" || verb == "stop" || verb == "restart") {
+      return polkit.Result.YES;
+    }
+  }
+});
+EOF
 
   echo "Creating tas2781-fix execution unit at $SERVICE_PATH."
   sudo tee "$SERVICE_PATH" >/dev/null <<EOF
 [Unit]
 Description=Run the tas2781-fix script when triggered
-Requires=tas2781-fix.socket
 
 [Service]
 ExecStart=$SCRIPT_PATH --execute
-Restart=no
-StandardInput=socket
 Type=oneshot
 TimeoutSec=60
-EOF
-
-  echo "Creating tas2781-fix activation unit at $SOCKET_PATH."
-  sudo tee "$SOCKET_PATH" >/dev/null <<EOF
-[Unit]
-Description=Socket to trigger the tas2781 fix
-
-[Socket]
-ListenFIFO=$SERVICE_FIFO
-FlushPending=yes
-SocketMode=0442
-Accept=no
-
-[Install]
-WantedBy=sockets.target
+RemainAfterExit=yes
 EOF
 
   echo "Creating tas2781-fix service at $USER_SERVICE_PATH."
@@ -207,10 +186,6 @@ EOF
 
   sudo systemctl daemon-reload
   systemctl --user daemon-reload
-
-  sudo systemctl enable tas2781-fix.socket
-  sudo systemctl start tas2781-fix.socket
-
   systemctl enable --user tas2781-fix.service
   systemctl start --user tas2781-fix.service
 }
@@ -303,27 +278,6 @@ execute_fix() {
   printf "on" > "$power_control_path"
 }
 
-trigger_fix() {
-  local count=0
-  
-  echo "Waiting for the tas2781-fix socket to become available."
-  while ! systemctl is-active --quiet tas2781-fix.socket; do
-    if [ $count -eq 60 ]; then
-      echo "Failed to trigger the tas2781-fix script." >&2
-      exit 1
-    fi
-
-    sleep 1
-    count=$(($count + 1))
-  done
-
-  echo "Triggering the tas2781-fix script."
-
-  # Poke the socket to trigger the tas2781-fix script. 
-  # This allows a non-root user to trigger the script.
-  echo "" > "$SERVICE_FIFO"
-}
-
 run_fix_service() {
   local unarray='.[]'
   local state_changed='select(.info["change-mask"]|index("state"))'
@@ -332,9 +286,9 @@ run_fix_service() {
   local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
   local alsa_components='select(.info.props["alsa.components"]|test("17aa3886"))'
 
-  pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_components|$sink|$state_changed|$props_changed|1" | while IFS=$'\n' read -r; do
-    trigger_fix
-  done
+  while IFS=$'\n' read -r; do
+    systemctl restart tas2781-fix.service
+  done < <(pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_components|$sink|$state_changed|$props_changed|1")
 }
 
 check-dependencies() {
@@ -350,6 +304,11 @@ check-dependencies() {
 
   if ! command -v pw-dump &>/dev/null; then
     echo "The pipewire package is required to run this script." >&2
+    exit 1
+  fi
+
+  if ! command -v pkexec &>/dev/null; then
+    echo "The polkit package is required to run this script." >&2
     exit 1
   fi
 }
