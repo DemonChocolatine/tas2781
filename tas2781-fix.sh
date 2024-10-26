@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_PATH="/usr/local/bin/tas2781-fix"
 SERVICE_PATH="/etc/systemd/system/tas2781-fix.service"
 USER_SERVICE_PATH="/etc/systemd/user/tas2781-fix.service"
-POLKIT_RULES_PATH="/etc/polkit-1/rules.d/10-tas2781-fix.rules"
+POLKIT_RULES_PATH="/etc/polkit-1/rules.d/10-tas2781-fix-$(id -u).rules"
 DISABLE_POWERSAVE_MODPROBE="/etc/modprobe.d/audio_disable_powersave.conf"
 DISABLE_PIPEWIRE_SUSPEND_CONF="/etc/wireplumber/wireplumber.conf.d/51-disable-suspension.conf"
 __SUPPRESS_UNINSTALL_MESSAGE=${__SUPPRESS_UNINSTALL_MESSAGE:-}
@@ -66,7 +66,8 @@ uninstall() {
     sudo rm -f "$DISABLE_PIPEWIRE_SUSPEND_CONF"
   fi
 
-  if [ -f "$POLKIT_RULES_PATH" ]; then
+  
+  if sudo bash -c '[ -f '"'$POLKIT_RULES_PATH'"' ]'; then
     echo "Removing polkit rule at $POLKIT_RULES_PATH."
     sudo rm -f "$POLKIT_RULES_PATH"
   fi
@@ -99,7 +100,9 @@ polkit.addRule(function(action, subject) {
   if (action.id == "org.freedesktop.systemd1.manage-units" && action.lookup("unit") == "tas2781-fix.service") {
     var verb = action.lookup("verb");
     if (verb == "start" || verb == "stop" || verb == "restart") {
-      return polkit.Result.YES;
+      if (subject.user == "$USER") {
+        return polkit.Result.YES;
+      }
     }
   }
 });
