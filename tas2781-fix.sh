@@ -100,7 +100,7 @@ install() {
   sudo tee "$POLKIT_RULES_PATH" >/dev/null <<EOF
 polkit.addRule(function(action, subject) {
   if (action.id !== "org.freedesktop.systemd1.manage-units") return;
-  if (action.lookup("unit") !== "tas2781-fix.service") return;
+  if (action.lookup("unit") !== "$SERVICE_NAME") return;
   var cgroup = polkit.spawn(["cat","/proc/"+subject.pid+"/cgroup"]).trim();
   if (cgroup == "0::/user.slice/user-$(id -u).slice/user@$(id -u).service/app.slice/$SERVICE_NAME") return polkit.Result.YES;  
 });
