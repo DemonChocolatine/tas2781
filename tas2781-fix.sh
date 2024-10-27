@@ -191,7 +191,7 @@ EOF
 }
 
 find_i2c_bus() {
-  find /sys/bus/i2c/devices/*/* -type d -name 'i2c-TIAS2781\:00' -print -quit | cut -f6 -d/ | cut -f2 -d-
+  find /sys/bus/i2c/devices/i2c-*/i2c-TIAS2781\:00 -maxdepth 0 -print -quit | cut -f6 -d/ | cut -f2 -d-
 }
 
 find_i2c_addresses() {
