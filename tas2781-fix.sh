@@ -5,9 +5,11 @@ set -euo pipefail
 # This script is used to fix the audio problems on Legion Pro 7 16IRX8H.
 # This is a combination of solutions from https://forums.lenovo.com/t5/Ubuntu/Ubuntu-and-legion-pro-7-16IRX8H-audio-issues/m-p/5210709
 
+NAME="tas2781-fix"
+SERVICE_NAME="tas2781-fix.service"
 SCRIPT_PATH="/usr/local/bin/tas2781-fix"
-SERVICE_PATH="/etc/systemd/system/tas2781-fix.service"
-USER_SERVICE_PATH="/etc/systemd/user/tas2781-fix.service"
+SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
+USER_SERVICE_PATH="/etc/systemd/user/$SERVICE_NAME"
 POLKIT_RULES_PATH="/etc/polkit-1/rules.d/10-tas2781-fix-$(id -u).rules"
 DISABLE_POWERSAVE_MODPROBE="/etc/modprobe.d/audio_disable_powersave.conf"
 DISABLE_PIPEWIRE_SUSPEND_CONF="/etc/wireplumber/wireplumber.conf.d/51-disable-suspension.conf"
@@ -30,20 +32,20 @@ uninstall() {
   fi
 
   # stop running units if they exist
-  if systemctl is-active --user --quiet tas2781-fix.service; then
+  if systemctl is-active --user --quiet $SERVICE_NAME; then
     echo "Stopping tas2781-fix service."
-    systemctl --user stop tas2781-fix.service
+    systemctl --user stop $SERVICE_NAME
   fi
 
-  if systemctl is-active --quiet tas2781-fix.service; then
+  if systemctl is-active --quiet $SERVICE_NAME; then
     echo "Stopping tas2781-fix execution unit."
-    sudo systemctl stop tas2781-fix.service
+    sudo systemctl stop $SERVICE_NAME
   fi
 
   # disable running units if they exist
-  if systemctl is-enabled --user --quiet tas2781-fix.service; then
+  if systemctl is-enabled --user --quiet t$SERVICE_NAME; then
     echo "Disabling tas2781-fix service."
-    systemctl --user disable tas2781-fix.service
+    systemctl --user disable $SERVICE_NAME
   fi
 
   if [ -f $SERVICE_PATH ]; then
@@ -97,19 +99,10 @@ install() {
   echo "Creating the polkit rule at $POLKIT_RULES_PATH."
   sudo tee "$POLKIT_RULES_PATH" >/dev/null <<EOF
 polkit.addRule(function(action, subject) {
-  if (action.id == "org.freedesktop.systemd1.manage-units" && action.lookup("unit") == "tas2781-fix.service") {
-    var verb = action.lookup("verb");
-    if (verb == "start" || verb == "stop" || verb == "restart") {
-      if (subject.user == "$USER") {
-        var cgroup = polkit.spawn(["cat", "/proc/" + subject.pid + "/cgroup"]).trim();
-        var expectedCgroup = '0::/user.slice/user-$(id -u).slice/user@$(id -u).service/app.slice/tas2781-fix.service';
-
-        if (cgroup == expectedCgroup) {
-          return polkit.Result.YES;
-        }
-      }
-    }
-  }
+  if (action.id !== "org.freedesktop.systemd1.manage-units") return;
+  if (action.lookup("unit") !== "tas2781-fix.service") return;
+  var cgroup = polkit.spawn(["cat","/proc/"+subject.pid+"/cgroup"]).trim();
+  if (cgroup == "0::/user.slice/user-$(id -u).slice/user@$(id -u).service/app.slice/$SERVICE_NAME") return polkit.Result.YES;  
 });
 EOF
 
@@ -194,8 +187,8 @@ EOF
 
   sudo systemctl daemon-reload
   systemctl --user daemon-reload
-  systemctl enable --user tas2781-fix.service
-  systemctl start --user tas2781-fix.service
+  systemctl enable --user $SERVICE_NAME
+  systemctl start --user $SERVICE_NAME
 }
 
 find_i2c_bus() {
@@ -295,7 +288,7 @@ run_fix_service() {
   local alsa_components='select(.info.props["alsa.components"]|test("17aa3886"))'
 
   while IFS=$'\n' read -r; do
-    systemctl restart tas2781-fix.service
+    systemctl restart $SERVICE_NAME
   done < <(pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_components|$sink|$state_changed|$props_changed|1")
 }
 
