@@ -19,14 +19,18 @@ uninstall() {
     echo "This script must not be run as root." >&2
     exit 1
   fi
+  
+  local service_changes_made=0
 
   sudo true
 
   if [ "$0" != "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
     # Call the uninstall function from the installed script. This allows older versions to uninstall themselves.
     __SUPPRESS_UNINSTALL_MESSAGE=1 "$SCRIPT_PATH" --uninstall
-    echo "Removing script at $SCRIPT_PATH."
-    sudo rm -f "$SCRIPT_PATH"
+    if [ -f "$SCRIPT_PATH" ]; then
+      echo "Removing script at $SCRIPT_PATH."
+      sudo rm -f "$SCRIPT_PATH"
+    fi
     return 0
   fi
 
@@ -49,11 +53,13 @@ uninstall() {
 
   if [ -f $SERVICE_PATH ]; then
     echo "Removing tas2781-fix execution unit at $SERVICE_PATH."
+    service_changes_made=1
     sudo rm -f "$SERVICE_PATH"
   fi
 
   if [ -f "$USER_SERVICE_PATH" ]; then
     echo "Removing tas2781-fix service at $USER_SERVICE_PATH."
+    service_changes_made=1
     sudo rm -f "$USER_SERVICE_PATH"
   fi
 
@@ -71,6 +77,12 @@ uninstall() {
   if sudo bash -c '[ -f '"'$POLKIT_RULES_PATH'"' ]'; then
     echo "Removing polkit rule at $POLKIT_RULES_PATH."
     sudo rm -f "$POLKIT_RULES_PATH"
+  fi
+
+  if [ "$service_changes_made" -eq 1 ]; then
+    echo "Reloading systemd daemon."
+    sudo systemctl daemon-reload
+    systemctl --user daemon-reload
   fi
 }
 
@@ -95,7 +107,7 @@ install() {
   sudo mkdir -p "$(dirname "$DISABLE_POWERSAVE_MODPROBE")"
   sudo mkdir -p "$(dirname "$DISABLE_PIPEWIRE_SUSPEND_CONF")"
 
-  echo "Creating the polkit rule at $POLKIT_RULES_PATH."
+  echo "Creating polkit rule at $POLKIT_RULES_PATH."
   sudo tee "$POLKIT_RULES_PATH" >/dev/null <<EOF
 polkit.addRule(function(action, subject) {
   if (action.id !== "org.freedesktop.systemd1.manage-units") return;
@@ -184,10 +196,12 @@ monitor.bluez.rules = [
 ]
 EOF
 
+  echo "Reloading systemd daemon."
   sudo systemctl daemon-reload
   systemctl --user daemon-reload
-  systemctl enable --user $SERVICE_NAME
-  systemctl start --user $SERVICE_NAME
+
+  echo "Enabling tas2781-fix service."
+  systemctl --user enable --now $SERVICE_NAME
 }
 
 find_i2c_bus() {
