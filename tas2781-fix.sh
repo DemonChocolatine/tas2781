@@ -27,10 +27,6 @@ uninstall() {
   if [ "$0" != "$SCRIPT_PATH" ] && [ -f "$SCRIPT_PATH" ]; then
     # Call the uninstall function from the installed script. This allows older versions to uninstall themselves.
     __SUPPRESS_UNINSTALL_MESSAGE=1 "$SCRIPT_PATH" --uninstall
-    if [ -f "$SCRIPT_PATH" ]; then
-      echo "Removing script at $SCRIPT_PATH."
-      sudo rm -f "$SCRIPT_PATH"
-    fi
     return 0
   fi
 
@@ -83,6 +79,11 @@ uninstall() {
     echo "Reloading systemd daemon."
     sudo systemctl daemon-reload
     systemctl --user daemon-reload
+  fi
+
+  if [ -f "$SCRIPT_PATH" ]; then
+    echo "Removing script at $SCRIPT_PATH."
+    sudo rm -f "$SCRIPT_PATH"
   fi
 }
 
@@ -362,11 +363,6 @@ parse_args() {
       ;;
     --uninstall)
       uninstall
-
-      if [ -f "$SCRIPT_PATH" ]; then
-        echo "Removing script at $SCRIPT_PATH."
-        sudo rm -f "$SCRIPT_PATH"
-      fi
       
       if [ -z "$__SUPPRESS_UNINSTALL_MESSAGE" ]; then
         echo "tas2781-fix has been uninstalled successfully."
