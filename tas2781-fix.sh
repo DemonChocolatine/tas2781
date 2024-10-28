@@ -46,7 +46,7 @@ uninstall() {
   fi
 
   # disable running units if they exist
-  if systemctl is-enabled --user --quiet t$SERVICE_NAME; then
+  if systemctl is-enabled --user --quiet $SERVICE_NAME; then
     echo "Disabling tas2781-fix service."
     systemctl --user disable $SERVICE_NAME
   fi
