@@ -7,7 +7,7 @@ This is a combination of solutions from [this thread](https://forums.lenovo.com/
 - Apply a fix to the TAS2781 chip when pipewire is activated
 - Apply the fix when awaking from suspend
 
-Tested on Arch Linux, kernel 6.11, KDE Plasma 6.
+Tested on Ubuntu 24, kernel 6.8.0-53-generic , CPU AMD Ryzen 9 7945HX with Radeon , HOST Legion Pro 7 16ARX8H
 
 ## Installation
 
@@ -21,7 +21,11 @@ Tested on Arch Linux, kernel 6.11, KDE Plasma 6.
 To install, simply run the following command:
 
 ```bash
-curl -s https://raw.githubusercontent.com/DanielWeiner/tas2781-fix-16IRX8H/refs/heads/main/install.sh | bash -s --
+
+git clone  https://github.com/DemonChocolatine/tas2781.git
+cd tas2781
+./tas2781-fix.sh --install
+
 ```
 
 Then make sure to **reboot your system.**
