@@ -251,7 +251,7 @@ execute_fix() {
     i2cset -f -y $i2c_bus $value 0x5c 0xd9 # CLK_PWRUD=1, DIS_CLK_HALT=0, CLK_HALT_TIMER=011, IRQZ_CLR=0, IRQZ_CFG=3
     i2cset -f -y $i2c_bus $value 0x60 0x10 # SBCLK_FS_RATIO=2
     
-    if [ $balance_index -eq 0 ]; then # Left/right channel configuration
+    if [ $balance_index -eq 1 ]; then # Left/right channel configuration
         i2cset -f -y $i2c_bus $value 0x0a 0x1e
     else
         i2cset -f -y $i2c_bus $value 0x0a 0x2e
@@ -298,9 +298,11 @@ run_fix_service() {
   local props_changed='select(.info["change-mask"]|index("props"))'
   local sink='select(.info.props["media.class"]=="Audio/Sink")'
   local snd_hda_intel='select(.info.props["alsa.driver_name"]=="snd_hda_intel")'
-  local alsa_card_name='select(.info.props["alsa.card_name"]=="HDA Intel PCH")'
-
+  local alsa_card_name='select(.info.props["alsa.card_name"]=="HD-Audio Generic")'
+  echo "RUUUUUUN"
   pw-dump -m | stdbuf -oL jq -cM "$unarray|$snd_hda_intel|$alsa_card_name|$sink|$state_changed|$props_changed|1" | while read; do
+  echo "GOOOOOO"
+  echo "HERE">>"/tmp/text.txt"
     systemctl restart $SERVICE_NAME
   done
 }
